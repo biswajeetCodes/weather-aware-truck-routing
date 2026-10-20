@@ -2,15 +2,15 @@ import { Clock3, Gauge, Map, PackageCheck } from "lucide-react";
 
 const riskStyle = (route) => {
   const summary = route?.risk_summary;
-  if (!summary) return ["—", "bg-slate-700 text-slate-200"];
-  if (summary.no_travel_miles > 0 || summary.severe_miles > 0 || summary.average_risk_score >= 3) return ["High risk", "bg-rose-500/15 text-rose-300 ring-rose-500/30"];
-  if (summary.high_miles > 0 || summary.average_risk_score > 1.5) return ["Moderate", "bg-amber-400/15 text-amber-300 ring-amber-400/30"];
-  return ["Safe", "bg-emerald-400/15 text-emerald-300 ring-emerald-400/30"];
+  if (!summary) return ["—", "border-slate-600 bg-slate-700/60 text-slate-200"];
+  if (summary.no_travel_miles > 0 || summary.severe_miles > 0 || summary.average_risk_score >= 3) return ["High risk", "border-rose-500/30 bg-rose-500/10 text-rose-300 shadow-[0_0_10px_rgba(244,63,94,0.15)]"];
+  if (summary.high_miles > 0 || summary.average_risk_score > 1.5) return ["Moderate", "border-amber-500/30 bg-amber-500/10 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.15)]"];
+  return ["Safe", "border-emerald-500/30 bg-emerald-500/10 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.2)]"];
 };
 
 export function RiskBadge({ route }) {
   const [label, style] = riskStyle(route);
-  return <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ring-1 ${style}`}>{label}</span>;
+  return <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${style}`}>{label}</span>;
 }
 
 export default function KpiCards({ route, loadWeight, departureTime }) {
@@ -24,5 +24,5 @@ export default function KpiCards({ route, loadWeight, departureTime }) {
     { title: "Weather risk score", value: risk, detail: route ? `Avg. ${route.risk_summary.average_risk_score}/5` : "—", icon: Gauge },
     { title: "Load weight status", value: `${Number(loadWeight).toLocaleString()} lbs`, detail: category, icon: PackageCheck },
   ];
-  return <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{cards.map(({ title, value, detail, icon: Icon }) => <article key={title} className="rounded-xl border border-line bg-panel p-4 shadow-lg shadow-slate-950/10"><div className="flex items-start justify-between"><p className="text-xs font-medium uppercase tracking-wider text-slate-400">{title}</p><Icon size={18} className="text-cyan-300" /></div><p className="mt-4 text-2xl font-semibold text-white">{value}</p><p className="mt-1 text-xs text-slate-400">{detail}</p></article>)}</section>;
+  return <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{cards.map(({ title, value, detail, icon: Icon }) => <article key={title} className="rounded-xl border border-slate-700 bg-[#131b2e] p-5 shadow-xl shadow-black/40 transition duration-200 hover:-translate-y-0.5 hover:border-cyan-500/50"><div className="flex items-start justify-between"><p className="text-xs font-medium uppercase tracking-wider text-slate-400">{title}</p><Icon size={19} className="text-cyan-400" /></div><p className="mt-4 text-2xl font-bold text-white">{value}</p><p className="mt-1.5 text-xs text-slate-400">{detail}</p></article>)}</section>;
 }
