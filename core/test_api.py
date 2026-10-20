@@ -1,9 +1,10 @@
 from datetime import datetime, timezone
+from time import perf_counter, sleep
 from unittest.mock import patch
 
 from django.test import TestCase
 
-from .views import calculate_weather_risk, sample_checkpoints
+from .views import build_route, calculate_weather_risk, sample_checkpoints
 
 
 class WeatherRiskRulesTests(TestCase):
@@ -25,6 +26,26 @@ class WeatherRiskRulesTests(TestCase):
         self.assertEqual(points[0]["distance_from_origin_miles"], 0)
         self.assertEqual(points[-1]["longitude"], 1)
         self.assertGreater(len(points), 2)
+
+    @patch("core.views.fetch_weather")
+    def test_checkpoint_weather_requests_are_concurrent_and_ordered(self, weather):
+        def delayed_weather(latitude, longitude, eta):
+            sleep(0.12)
+            return {"wind_mph": latitude, "rain_in_hr": 0, "snow_in_hr": 0, "forecast_time": eta}
+
+        weather.side_effect = delayed_weather
+        route = {"distance": 160934, "duration": 7200, "geometry": {"coordinates": [[0, 0], [1, 0]]}}
+        started = perf_counter()
+        result = build_route(route, 1, 1000, 50, datetime(2026, 1, 1, tzinfo=timezone.utc))
+
+        # This fixture produces three checkpoints. Sequential calls take at
+        # least 0.36 seconds; concurrent requests complete in about one delay.
+        self.assertLess(perf_counter() - started, 0.30)
+        self.assertEqual(weather.call_count, len(result["checkpoints"]))
+        self.assertEqual(
+            [point["eta"] for point in result["checkpoints"]],
+            sorted(point["eta"] for point in result["checkpoints"]),
+        )
 
 
 class RouteWeatherApiTests(TestCase):

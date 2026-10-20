@@ -1,4 +1,5 @@
 """Route weather API and the tested weather/load risk rules."""
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from math import asin, cos, radians, sin, sqrt
 
@@ -10,6 +11,9 @@ NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
 OSRM_URL = "https://router.project-osrm.org/route/v1/driving"
 OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
 HTTP_TIMEOUT_SECONDS = 12
+# Open-Meteo calls are I/O-bound. A bounded pool avoids serial checkpoint
+# requests while protecting both our worker and the upstream public service.
+MAX_WEATHER_WORKERS = 12
 RISK_SCORES = {"Low": 1, "Moderate": 2, "High": 3, "Severe": 4, "No Travel": 5}
 
 
@@ -121,11 +125,24 @@ def fetch_weather(latitude, longitude, eta):
 def build_route(route, route_index, load_weight, interval_miles, departure_time):
     checkpoints = sample_checkpoints(route.get("geometry", {}).get("coordinates", []), interval_miles)
     total_miles, duration_seconds = float(route["distance"]) / 1609.344, float(route["duration"])
+    checkpoint_etas = [
+        departure_time + timedelta(
+            seconds=duration_seconds * (checkpoint["distance_from_origin_miles"] / total_miles if total_miles else 0)
+        )
+        for checkpoint in checkpoints
+    ]
+
+    # executor.map preserves input order, so checkpoint ordering and the public
+    # response payload remain unchanged while network I/O runs concurrently.
+    with ThreadPoolExecutor(max_workers=min(MAX_WEATHER_WORKERS, len(checkpoints))) as executor:
+        weather_by_checkpoint = list(executor.map(
+            lambda values: fetch_weather(*values),
+            ((checkpoint["latitude"], checkpoint["longitude"], eta)
+             for checkpoint, eta in zip(checkpoints, checkpoint_etas)),
+        ))
+
     weighted_score = severe_miles = high_miles = no_travel_miles = 0.0
-    for index, checkpoint in enumerate(checkpoints):
-        proportion = checkpoint["distance_from_origin_miles"] / total_miles if total_miles else 0
-        eta = departure_time + timedelta(seconds=duration_seconds * proportion)
-        weather = fetch_weather(checkpoint["latitude"], checkpoint["longitude"], eta)
+    for index, (checkpoint, eta, weather) in enumerate(zip(checkpoints, checkpoint_etas, weather_by_checkpoint)):
         risk = calculate_weather_risk(weather["wind_mph"], weather["rain_in_hr"], weather["snow_in_hr"], load_weight)
         next_distance = checkpoints[index + 1]["distance_from_origin_miles"] if index + 1 < len(checkpoints) else total_miles
         segment_miles = max(0, next_distance - checkpoint["distance_from_origin_miles"])
