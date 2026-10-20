@@ -15,7 +15,7 @@ function FitRoutes({ routes }) {
 export default function RouteMap({ routes, selectedRouteId, onSelect }) {
   const usableRoutes = routes ?? [];
   const center = usableRoutes[0]?.checkpoints?.[0] ? [usableRoutes[0].checkpoints[0].latitude, usableRoutes[0].checkpoints[0].longitude] : [39.5, -98.35];
-  return <div className="h-[440px] overflow-hidden rounded-xl border border-slate-700 bg-[#131b2e] shadow-xl shadow-black/40 ring-1 ring-white/5 lg:h-full"><MapContainer center={center} zoom={4} scrollWheelZoom><TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" /><FitRoutes routes={usableRoutes} />
+  return <div className="h-[440px] overflow-hidden rounded-xl border border-slate-300 bg-white shadow-lg shadow-slate-300/60 lg:h-full"><MapContainer center={center} zoom={4} scrollWheelZoom><TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" /><FitRoutes routes={usableRoutes} />
     {usableRoutes.map((route) => {
       const selected = route.route_id === selectedRouteId;
       const color = route.recommended ? "#22c55e" : route.risk_summary.no_travel_miles > 0 || route.risk_summary.severe_miles > 0 ? "#ef4444" : "#fbbf24";

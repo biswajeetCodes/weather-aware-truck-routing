@@ -3,7 +3,7 @@ import { LoaderCircle, MapPin, Navigation, Package, Route } from "lucide-react";
 export default function Sidebar({ values, onChange, onSubmit, loading }) {
   const update = (field, value) => onChange({ ...values, [field]: value });
   return (
-    <aside className="flex w-full shrink-0 flex-col border-b border-slate-700 bg-[#131b2e] p-5 shadow-xl shadow-black/40 lg:min-h-screen lg:w-80 lg:border-r lg:border-b-0 lg:p-6">
+    <aside className="flex w-full shrink-0 flex-col border-b border-slate-700 bg-[#0d1322] p-5 shadow-xl shadow-black/40 lg:min-h-screen lg:w-80 lg:border-r lg:border-b-0 lg:p-6">
       <div className="mb-9 flex items-center gap-3">
         <div className="rounded-xl bg-gradient-to-br from-cyan-400 to-blue-600 p-2.5 text-white shadow-lg shadow-cyan-900/40"><Route size={22} strokeWidth={2.7} /></div>
         <div><h1 className="font-bold tracking-wide text-white">SPOTTER AI</h1><p className="text-xs text-slate-400">Dispatch intelligence</p></div>
@@ -23,7 +23,7 @@ export default function Sidebar({ values, onChange, onSubmit, loading }) {
           {loading ? <LoaderCircle className="animate-spin" size={18} /> : <Route size={18} />} {loading ? "Scanning conditions…" : "Calculate Safe Route"}
         </button>
       </form>
-      <div className="mt-auto hidden rounded-xl border border-slate-700 bg-[#0b0f19] p-4 text-xs leading-5 text-slate-400 shadow-xl shadow-black/40 lg:block">
+      <div className="mt-auto hidden rounded-xl border border-slate-600 bg-[#111b30] p-4 text-xs leading-5 text-slate-400 shadow-lg shadow-black/40 lg:block">
         Forecasts are evaluated at each checkpoint's estimated arrival time.
       </div>
     </aside>
@@ -31,5 +31,5 @@ export default function Sidebar({ values, onChange, onSubmit, loading }) {
 }
 
 function Field({ label, icon, children }) {
-  return <label className="block text-sm font-medium text-slate-300"><span className="mb-2 flex items-center gap-2 text-slate-400">{icon}{label}</span><div className="[&_input]:w-full [&_input]:rounded-lg [&_input]:border [&_input]:border-slate-700 [&_input]:bg-[#0b0f19] [&_input]:px-3 [&_input]:py-2.5 [&_input]:text-sm [&_input]:text-slate-100 [&_input]:outline-none [&_input]:transition [&_input]:placeholder:text-slate-600 [&_input]:focus:border-cyan-500 [&_input]:focus:ring-2 [&_input]:focus:ring-cyan-500/15 [&_select]:w-full [&_select]:rounded-lg [&_select]:border [&_select]:border-slate-700 [&_select]:bg-[#0b0f19] [&_select]:px-3 [&_select]:py-2.5 [&_select]:text-sm [&_select]:text-slate-100 [&_select]:outline-none [&_select]:transition [&_select]:focus:border-cyan-500 [&_select]:focus:ring-2 [&_select]:focus:ring-cyan-500/15">{children}</div></label>;
+  return <label className="block text-sm font-medium text-slate-300"><span className="mb-2 flex items-center gap-2 text-slate-400">{icon}{label}</span><div className="[&_input]:w-full [&_input]:rounded-lg [&_input]:border [&_input]:border-slate-500 [&_input]:bg-[#111b30] [&_input]:px-3 [&_input]:py-2.5 [&_input]:text-sm [&_input]:text-slate-100 [&_input]:outline-none [&_input]:transition [&_input]:placeholder:text-slate-500 [&_input]:focus:border-cyan-400 [&_input]:focus:ring-2 [&_input]:focus:ring-cyan-400/40 [&_select]:w-full [&_select]:rounded-lg [&_select]:border [&_select]:border-slate-500 [&_select]:bg-[#111b30] [&_select]:px-3 [&_select]:py-2.5 [&_select]:text-sm [&_select]:text-slate-100 [&_select]:outline-none [&_select]:transition [&_select]:focus:border-cyan-400 [&_select]:focus:ring-2 [&_select]:focus:ring-cyan-400/40">{children}</div></label>;
 }
