@@ -236,10 +236,21 @@ The frontend and backend can be deployed separately without changing the API con
 2. Serve the generated `dist/` directory from a static host.
 3. Run Django with Gunicorn using the `Procfile` command or an equivalent process definition.
 4. Set `DJANGO_DEBUG=false`, a new secret key, exact allowed hosts, exact CORS origins, and HTTPS-aware settings.
-5. Run `python manage.py migrate` during deployment.
-6. Configure the platform health probe to `GET /api/health/`.
+5. On Render, use this build command to install dependencies, collect WhiteNoise-managed static files, and initialize the ephemeral SQLite database:
 
-SQLite is sufficient for local development. Choose a managed database only if the deployed application will use persistent Django accounts, sessions, or administrative data. A shared cache is not required for the assessment, but multi-worker production throttling needs a shared cache if strict global limits are required.
+   ```bash
+   pip install -r requirements.txt && python manage.py collectstatic --noinput && python manage.py migrate
+   ```
+
+6. Use this start command:
+
+   ```bash
+   gunicorn weather_core.wsgi:application --bind 0.0.0.0:$PORT
+   ```
+
+7. Pin the Render runtime with the committed `.python-version` file and configure the platform health probe to `GET /api/health/`.
+
+SQLite is sufficient for local development and a stateless assessment API demo. Render Free's filesystem is ephemeral, so deployed Django accounts, sessions, and other runtime database changes will not persist across restarts, spin-downs, or redeployments. Choose a managed database if persistent administrative or application data becomes necessary. A shared cache is not required for the assessment, but multi-worker production throttling needs a shared cache if strict global limits are required.
 
 Before production, run:
 
