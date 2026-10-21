@@ -28,11 +28,11 @@ export default function ForecastHeatmapControl({ offset, onChange, route, foreca
     ?? (forecastStartTime ? new Date(new Date(forecastStartTime).getTime() + offset * 3600000).toISOString() : null);
   const disabled = !route;
 
-  return <section className="rounded-xl border border-slate-300 bg-white px-4 py-3 shadow-md shadow-slate-300/50" aria-label="Route weather forecast heatmap controls">
+  return <section className="rounded-xl border border-slate-200 bg-white px-4 py-3.5 shadow-[0_8px_24px_rgba(15,23,42,0.07)] transition-shadow duration-200 hover:shadow-[0_10px_28px_rgba(15,23,42,0.09)]" aria-label="Route weather forecast heatmap controls">
     <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
       <div className="flex min-w-[185px] items-center gap-2.5">
-        <span className="rounded-lg bg-cyan-50 p-2 text-cyan-700"><Clock3 size={17} aria-hidden="true" /></span>
-        <div><h2 className="text-[13px] font-semibold text-slate-900">Corridor forecast</h2><p className="text-[11px] text-slate-500">Independent of dispatch ETA</p></div>
+        <span className="rounded-lg border border-cyan-100 bg-cyan-50 p-2 text-cyan-700"><Clock3 size={17} aria-hidden="true" /></span>
+        <div><h2 className="text-[13px] font-bold text-slate-900">Corridor forecast</h2><p className="text-[11px] text-slate-500">Independent of dispatch ETA</p></div>
       </div>
       <div className="min-w-0 flex-1">
         <div className="mb-1.5 flex items-center justify-between gap-3 text-[11px]">

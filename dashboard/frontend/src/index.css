@@ -8,13 +8,20 @@
 
 * { box-sizing: border-box; }
 html, body, #root { min-height: 100%; }
-body { margin: 0; min-width: 320px; overflow-x: hidden; background: #f8fafc; color: #0f172a; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+body { margin: 0; min-width: 320px; overflow-x: hidden; background: #f8fafc; color: #0f172a; font-family: Inter, ui-sans-serif, system-ui, sans-serif; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+::selection { background: rgb(34 211 238 / .24); color: inherit; }
+.app-workspace { background: radial-gradient(circle at 88% 0%, rgb(8 145 178 / .055), transparent 28rem), #f8fafc; }
 .dark { color-scheme: dark; background: #080d18; color: #e2e8f0; }
-.dark main { background: #080d18; }
+.dark .app-workspace { background: radial-gradient(circle at 88% 0%, rgb(8 145 178 / .08), transparent 30rem), #080d18; }
 .dark .bg-white { background-color: #131b2e; }
 .dark .bg-slate-50 { background-color: #0f172a; }
 .dark .bg-slate-100 { background-color: #172033; }
 .dark .border-slate-200, .dark .border-slate-300 { border-color: #334155; }
+.dark .border-emerald-200 { border-color: rgb(16 185 129 / .35); }
+.dark .border-cyan-100, .dark .border-cyan-200, .dark .border-cyan-300 { border-color: rgb(34 211 238 / .25); }
+.dark .border-amber-200, .dark .border-amber-300 { border-color: rgb(245 158 11 / .35); }
+.dark .border-orange-200, .dark .border-orange-300 { border-color: rgb(249 115 22 / .35); }
+.dark .border-rose-200, .dark .border-rose-300, .dark .border-red-300, .dark .border-red-400 { border-color: rgb(244 63 94 / .38); }
 .dark .text-slate-900, .dark .text-slate-800 { color: #f8fafc; }
 .dark .text-slate-700 { color: #cbd5e1; }
 .dark .text-slate-600, .dark .text-slate-500 { color: #94a3b8; }
@@ -24,11 +31,15 @@ body { margin: 0; min-width: 320px; overflow-x: hidden; background: #f8fafc; col
 .dark .bg-amber-50 { background-color: rgb(245 158 11 / .12); }
 .dark .bg-orange-50 { background-color: rgb(249 115 22 / .12); }
 .dark .bg-rose-50, .dark .bg-red-50 { background-color: rgb(244 63 94 / .12); }
+.dark .bg-amber-100 { background-color: rgb(245 158 11 / .18); }
+.dark .bg-orange-100 { background-color: rgb(249 115 22 / .18); }
+.dark .bg-rose-100, .dark .bg-red-100 { background-color: rgb(244 63 94 / .18); }
 .dark .text-cyan-700 { color: #67e8f9; }
 .dark .text-emerald-700 { color: #6ee7b7; }
 .dark .text-amber-700 { color: #fcd34d; }
 .dark .text-orange-700 { color: #fdba74; }
 .dark .text-rose-700, .dark .text-red-800 { color: #fda4af; }
+.dark .shadow-cyan-100 { --tw-shadow-color: rgb(8 145 178 / .12); }
 .dark .leaflet-control-attribution { background: rgb(15 23 42 / .82); color: #94a3b8; }
 .dark .leaflet-control-attribution a { color: #67e8f9; }
 .leaflet-container { height: 100%; width: 100%; background: #172033; font-family: inherit; }

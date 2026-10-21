@@ -103,7 +103,7 @@ export default function RouteMap({ routes, selectedRouteId, onSelect, forecastOf
     ? [usableRoutes[0].checkpoints[0].latitude, usableRoutes[0].checkpoints[0].longitude]
     : [39.5, -98.35];
 
-  return <div className="h-[300px] min-w-0 overflow-hidden rounded-xl border border-slate-300 bg-white shadow-md shadow-slate-300/60 sm:h-[340px] xl:h-[360px]">
+  return <div className="h-[300px] min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_8px_24px_rgba(15,23,42,0.09)] transition-shadow duration-200 hover:shadow-[0_12px_32px_rgba(15,23,42,0.12)] sm:h-[340px] xl:h-[360px]">
     <MapContainer center={center} zoom={4} scrollWheelZoom preferCanvas style={{ height: "100%", width: "100%" }}>
       <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
       <FitSelectedRoute route={selectedRoute} /><MapResizer />
