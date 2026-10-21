@@ -1,42 +1,70 @@
-import { useMemo, useState } from "react";
-import { AlertCircle, Radar, ShieldCheck } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AlertCircle, Moon, Radar, ShieldCheck, Sun } from "lucide-react";
 import Sidebar from "./components/dashboard/Sidebar";
 import KpiCards from "./components/dashboard/KpiCards";
 import RouteMap from "./components/dashboard/RouteMap";
 import RouteAnalytics from "./components/dashboard/RouteAnalytics";
-import { calculateSafeRoute } from "./services/api";
+import ForecastHeatmapControl from "./components/dashboard/ForecastHeatmapControl";
+import { calculateSafeRoute, getDefaultDepartureTime, getMaximumDepartureTime, getMinimumDepartureTime } from "./services/api";
 
-const initialValues = { origin: "New York, NY", destination: "Boston, MA", load_weight: 35000, checkpoint_interval_miles: 25 };
+const createInitialValues = () => ({ origin: "New York, NY", destination: "Boston, MA", departure_time: getDefaultDepartureTime(), load_weight: 35000, checkpoint_interval_miles: 25 });
 
 export default function App() {
-  const [values, setValues] = useState(initialValues);
+  const [theme, setTheme] = useState(() => localStorage.getItem("spotter-theme") === "dark" ? "dark" : "light");
+  const [values, setValues] = useState(createInitialValues);
   const [data, setData] = useState(null);
   const [selectedRouteId, setSelectedRouteId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [forecastOffsetHours, setForecastOffsetHours] = useState(0);
+  const requestId = useRef(0);
 
   const selectedRoute = useMemo(() => data?.routes.find((route) => route.route_id === selectedRouteId) ?? data?.routes[0], [data, selectedRouteId]);
+  const recommendedRoute = useMemo(() => data?.routes.find((route) => route.route_id === data.recommended_route_id), [data]);
+  useEffect(() => {
+    localStorage.setItem("spotter-theme", theme);
+  }, [theme]);
   async function handleSubmit(event) {
     event.preventDefault();
+    const currentRequestId = ++requestId.current;
     setError(""); setLoading(true);
     try {
       const result = await calculateSafeRoute({ ...values, load_weight: Number(values.load_weight) });
+      if (currentRequestId !== requestId.current) return;
       setData(result);
       setSelectedRouteId(result.recommended_route_id);
-    } catch (err) { setError(err.message); }
-    finally { setLoading(false); }
+      setForecastOffsetHours(0);
+    } catch (err) {
+      if (currentRequestId === requestId.current) setError(err.message);
+    } finally {
+      if (currentRequestId === requestId.current) setLoading(false);
+    }
   }
 
-  return <div className="min-h-screen bg-slate-100 text-slate-900 lg:flex">
-    <Sidebar values={values} onChange={setValues} onSubmit={handleSubmit} loading={loading} />
-    <main className="min-w-0 flex-1 p-5 sm:p-7 xl:p-8">
-      <header className="mb-7 flex flex-col justify-between gap-5 sm:flex-row sm:items-end"><div><p className="mb-1.5 text-xs font-bold uppercase tracking-[.2em] text-cyan-700">Live route intelligence</p><h2 className="text-3xl font-bold tracking-tight text-slate-900">Weather-aware dispatch center</h2><p className="mt-2 text-sm text-slate-600">Compare road routes against weather conditions at each arrival checkpoint.</p></div><div className="flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2 text-xs font-semibold text-emerald-700 shadow-[0_0_14px_rgba(16,185,129,0.18)]"><span className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(52,211,153,0.9)]" /> Forecast monitoring active</div></header>
-      {error && <div role="alert" className="mb-6 flex items-center gap-2 rounded-xl border border-rose-500/35 bg-rose-500/10 p-4 text-sm text-rose-200 shadow-lg shadow-black/20"><AlertCircle size={18}/>{error}</div>}
+  function handleReset() {
+    requestId.current += 1;
+    setValues(createInitialValues());
+    setData(null);
+    setSelectedRouteId(null);
+    setError("");
+    setLoading(false);
+    setForecastOffsetHours(0);
+  }
+
+  const dark = theme === "dark";
+
+  return <div className={`${dark ? "dark" : ""} min-h-screen overflow-x-hidden bg-slate-100 text-slate-900 transition-colors lg:flex lg:h-screen`}>
+    <Sidebar values={values} onChange={setValues} onSubmit={handleSubmit} onReset={handleReset} loading={loading} minDepartureTime={getMinimumDepartureTime()} maxDepartureTime={getMaximumDepartureTime()} />
+    <main className="min-h-0 min-w-0 flex-1 overflow-y-auto p-4 sm:p-5 xl:p-6">
+      <header className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-end"><div><p className="mb-1 text-[11px] font-bold uppercase tracking-[.18em] text-cyan-700">Live route intelligence</p><h2 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-[26px]">Weather-aware dispatch center</h2><p className="mt-1 text-[13px] text-slate-600">Compare road routes against weather conditions at each arrival checkpoint.</p></div><div className="flex shrink-0 items-center gap-2"><div className="flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-[11px] font-semibold text-emerald-700 shadow-[0_0_12px_rgba(16,185,129,0.14)]"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(52,211,153,0.9)]" /> Forecast monitoring active</div><button type="button" onClick={() => setTheme(dark ? "light" : "dark")} aria-label={`Switch to ${dark ? "light" : "dark"} mode`} title={`Switch to ${dark ? "light" : "dark"} mode`} className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-600 shadow-sm transition hover:border-cyan-400 hover:text-cyan-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"><span className="sr-only">Switch to {dark ? "light" : "dark"} mode</span>{dark ? <Sun size={16} aria-hidden="true" /> : <Moon size={16} aria-hidden="true" />}</button></div></header>
+      {error && <div role="alert" className="mb-4 flex items-center gap-2 rounded-lg border border-rose-500/35 bg-rose-500/10 p-3 text-sm text-rose-800 shadow-md shadow-rose-100"><AlertCircle size={17}/>{error}</div>}
       <KpiCards route={selectedRoute} loadWeight={values.load_weight} departureTime={data?.departure_time} />
-      <section className="mt-6 grid gap-6 xl:grid-cols-[1.55fr_.85fr]"><div className="min-h-[440px]"><RouteMap routes={data?.routes} selectedRouteId={selectedRoute?.route_id} onSelect={setSelectedRouteId} /></div>
-        <div className="rounded-xl border border-slate-300 bg-white p-6 shadow-lg shadow-slate-300/50 transition hover:border-cyan-400">{selectedRoute ? <><div className="mb-5 flex items-center gap-2 text-emerald-600"><ShieldCheck size={20}/><span className="text-sm font-semibold">Dispatch recommendation</span></div><p className="text-xl font-bold text-slate-900">Route {selectedRoute.route_id} is selected</p><p className="mt-2 text-sm leading-6 text-slate-600">This route is ranked using severe exposure, high-risk exposure, average weather risk, then duration.</p><div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4"><p className="text-xs font-medium uppercase tracking-wider text-slate-500">No-travel exposure</p><p className="mt-1 text-2xl font-bold text-slate-900">{selectedRoute.risk_summary.no_travel_miles} mi</p></div></> : <div className="flex h-full flex-col items-center justify-center text-center"><Radar size={32} className="mb-3 text-cyan-600"/><p className="font-semibold text-slate-900">Ready to scan</p><p className="mt-2 max-w-xs text-sm leading-6 text-slate-500">Enter an origin and destination to calculate weather-aware alternatives.</p></div>}</div>
+      <div className="mt-4"><ForecastHeatmapControl offset={forecastOffsetHours} onChange={setForecastOffsetHours} route={selectedRoute} forecastStartTime={data?.forecast_start_time} /></div>
+      <section className="mt-4 grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.9fr)_minmax(260px,1fr)]"><RouteMap routes={data?.routes} selectedRouteId={selectedRoute?.route_id} onSelect={setSelectedRouteId} forecastOffsetHours={forecastOffsetHours} />
+        <div className="flex min-h-[300px] min-w-0 flex-col rounded-xl border border-slate-300 bg-white p-4 shadow-md shadow-slate-300/50 transition hover:border-cyan-400">{selectedRoute ? <><div className="mb-3 flex items-center gap-2 text-emerald-600"><ShieldCheck size={18}/><span className="text-[13px] font-semibold">Safest-route recommendation</span></div><p className="text-lg font-bold text-slate-900">Recommended: Route {recommendedRoute?.route_id}</p><p className="mt-1 text-[12px] font-semibold text-cyan-700">Currently selected: Route {selectedRoute.route_id}</p>{!selectedRoute.recommended && <button type="button" onClick={() => setSelectedRouteId(recommendedRoute.route_id)} className="mt-2 self-start rounded-md border border-cyan-300 bg-cyan-50 px-2.5 py-1.5 text-[11px] font-semibold text-cyan-700 transition hover:bg-cyan-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500">View recommended route</button>}<p className="mt-2 text-[13px] leading-5 text-slate-600">Ranked by fewest severe miles, fewest high-risk miles, lowest distance-weighted average risk, then shortest duration.</p><div className="mt-auto rounded-lg border border-slate-200 bg-slate-50 p-3"><p className="text-[11px] font-medium uppercase tracking-wider text-slate-500">Selected route · No-travel exposure</p><p className="mt-1 text-xl font-bold text-slate-900">{selectedRoute.risk_summary.no_travel_miles} mi</p></div></> : <div className="flex h-full flex-col items-center justify-center text-center"><Radar size={27} className="mb-2 text-cyan-600"/><p className="text-sm font-semibold text-slate-900">Ready to scan</p><p className="mt-1.5 max-w-xs text-[13px] leading-5 text-slate-500">Enter an origin and destination to calculate weather-aware alternatives.</p></div>}</div>
       </section>
-      <section className="mt-6"><RouteAnalytics routes={data?.routes ?? []} selectedRouteId={selectedRoute?.route_id} onSelect={setSelectedRouteId}/></section>
+      <section className="mt-4"><RouteAnalytics routes={data?.routes ?? []} selectedRouteId={selectedRoute?.route_id} onSelect={setSelectedRouteId}/></section>
+      <footer className="mt-4 flex flex-col gap-0.5 border-t border-slate-300 py-3 text-[11px] text-slate-500 sm:flex-row sm:items-center sm:justify-between"><span className="font-semibold text-slate-700">Spotter AI | Weather-Aware Route Intelligence</span><span>Built for smarter dispatch decisions · Weather data by <a href="https://open-meteo.com/" target="_blank" rel="noreferrer" className="font-medium text-cyan-700 underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500">Open-Meteo</a></span></footer>
     </main>
   </div>;
 }

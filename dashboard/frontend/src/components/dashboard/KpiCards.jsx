@@ -1,4 +1,6 @@
 import { Clock3, Gauge, Map, PackageCheck } from "lucide-react";
+import HelpTooltip from "./HelpTooltip";
+import { formatDuration } from "./formatters";
 
 const riskStyle = (route) => {
   const summary = route?.risk_summary;
@@ -19,10 +21,10 @@ export default function KpiCards({ route, loadWeight, departureTime }) {
   const eta = route && departureTime ? new Date(new Date(departureTime).getTime() + minutes * 60000) : null;
   const category = loadWeight > 40000 ? "Heavy haul" : loadWeight > 30000 ? "Loaded" : "Standard";
   const cards = [
-    { title: "Total distance", value: route ? `${route.distance_miles.toLocaleString()} mi` : "—", detail: route ? `${(route.distance_miles * 1.60934).toFixed(1)} km` : "Select a route", icon: Map },
-    { title: "Travel time / ETA", value: route ? `${Math.floor(minutes / 60)}h ${Math.round(minutes % 60)}m` : "—", detail: eta ? `Arrives ${eta.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "—", icon: Clock3 },
-    { title: "Weather risk score", value: risk, detail: route ? `Avg. ${route.risk_summary.average_risk_score}/5` : "—", icon: Gauge },
-    { title: "Load weight status", value: `${Number(loadWeight).toLocaleString()} lbs`, detail: category, icon: PackageCheck },
+    { title: "Total distance", value: route ? `${route.distance_miles.toLocaleString()} mi` : "—", detail: route ? `${(route.distance_miles * 1.60934).toFixed(1)} km` : "Select a route", icon: Map, help: "Total road distance for the selected route, shown in miles and kilometers." },
+    { title: "Travel time / ETA", value: route ? formatDuration(minutes) : "—", detail: eta ? `Arrives ${eta.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "—", icon: Clock3, help: "OSRM travel duration and estimated arrival time based on the submitted departure." },
+    { title: "Weather risk score", value: risk, detail: route ? `Avg. ${route.risk_summary.average_risk_score}/5` : "—", icon: Gauge, help: "Average ETA-based weather risk across the route. The forecast slider does not change it." },
+    { title: "Load weight status", value: `${Number(loadWeight).toLocaleString()} lbs`, detail: category, icon: PackageCheck, help: "Submitted cargo weight and operating category. Weight affects wind-risk overrides." },
   ];
-  return <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{cards.map(({ title, value, detail, icon: Icon }) => <article key={title} className="rounded-xl border border-slate-300 bg-white p-5 shadow-lg shadow-slate-300/60 transition duration-200 hover:-translate-y-0.5 hover:border-cyan-400 hover:shadow-xl hover:shadow-cyan-100"><div className="flex items-start justify-between"><p className="text-xs font-semibold uppercase tracking-wider text-slate-500">{title}</p><Icon size={19} className="text-cyan-600" /></div><p className="mt-4 text-2xl font-bold text-slate-900">{value}</p><p className="mt-1.5 text-xs text-slate-500">{detail}</p></article>)}</section>;
+  return <section className="grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-4">{cards.map(({ title, value, detail, icon: Icon, help }) => <article key={title} className="min-w-0 rounded-lg border border-slate-300 bg-white p-3.5 shadow-md shadow-slate-300/50 transition duration-200 hover:-translate-y-0.5 hover:border-cyan-400 hover:shadow-lg hover:shadow-cyan-100"><div className="flex items-start justify-between gap-2"><div className="flex min-w-0 items-center gap-1.5"><p className="truncate text-[11px] font-semibold uppercase tracking-wider text-slate-500">{title}</p><HelpTooltip text={help} /></div><Icon size={17} className="shrink-0 text-cyan-600" /></div><p className="mt-3 truncate text-[22px] font-bold leading-none text-slate-900">{value}</p><p className="mt-1.5 truncate text-[11px] text-slate-500">{detail}</p></article>)}</section>;
 }

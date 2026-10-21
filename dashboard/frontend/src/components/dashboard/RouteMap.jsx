@@ -1,27 +1,138 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { CircleMarker, MapContainer, Polyline, Popup, TileLayer, useMap } from "react-leaflet";
+import { getCheckpointForecast } from "./forecastSnapshot";
 
-const colors = { Low: "#34d399", Moderate: "#fbbf24", High: "#fb923c", Severe: "#fb7185", "No Travel": "#ef4444" };
+const colors = { Low: "#10b981", Moderate: "#f59e0b", High: "#f97316", Severe: "#f43f5e", "No Travel": "#991b1b", Unknown: "#94a3b8" };
 
-function FitRoutes({ routes }) {
+function routePositions(route) {
+  const geometry = route.geometry?.coordinates;
+  if (route.geometry?.type === "LineString" && geometry?.length > 1) {
+    return geometry
+      .filter((coordinate) => Array.isArray(coordinate) && coordinate.length >= 2)
+      .map(([longitude, latitude]) => [Number(latitude), Number(longitude)])
+      .filter(([latitude, longitude]) => Number.isFinite(latitude) && Number.isFinite(longitude)
+        && Math.abs(latitude) <= 90 && Math.abs(longitude) <= 180);
+  }
+  return route.checkpoints
+    .map((point) => [Number(point.latitude), Number(point.longitude)])
+    .filter(([latitude, longitude]) => Number.isFinite(latitude) && Number.isFinite(longitude)
+      && Math.abs(latitude) <= 90 && Math.abs(longitude) <= 180);
+}
+
+function distanceMiles([lat1, lon1], [lat2, lon2]) {
+  const radians = (degrees) => degrees * Math.PI / 180;
+  const latitudeDelta = radians(lat2 - lat1);
+  const longitudeDelta = radians(lon2 - lon1);
+  const a = Math.sin(latitudeDelta / 2) ** 2
+    + Math.cos(radians(lat1)) * Math.cos(radians(lat2)) * Math.sin(longitudeDelta / 2) ** 2;
+  return 3958.7613 * 2 * Math.asin(Math.sqrt(a));
+}
+
+function buildRiskRuns(route, offset) {
+  const positions = routePositions(route);
+  if (positions.length < 2) return [];
+  const checkpoints = route.checkpoints;
+  const boundaries = checkpoints.slice(0, -1).map((point, index) =>
+    (point.distance_from_origin_miles + checkpoints[index + 1].distance_from_origin_miles) / 2);
+  const runs = [];
+  let travelled = 0;
+  let checkpointIndex = 0;
+
+  for (let index = 0; index < positions.length - 1; index += 1) {
+    const start = positions[index];
+    const end = positions[index + 1];
+    const segmentMiles = distanceMiles(start, end);
+    const midpoint = travelled + segmentMiles / 2;
+    while (checkpointIndex < boundaries.length && midpoint > boundaries[checkpointIndex]) checkpointIndex += 1;
+    const forecast = getCheckpointForecast(checkpoints[checkpointIndex], offset);
+    const risk = forecast?.available ? forecast.risk_level : "Unknown";
+    const previous = runs[runs.length - 1];
+    if (previous?.risk === risk) previous.positions.push(end);
+    else runs.push({ risk, positions: [start, end] });
+    travelled += segmentMiles;
+  }
+  return runs;
+}
+
+function FitSelectedRoute({ route }) {
   const map = useMap();
   useEffect(() => {
-    const points = routes.flatMap((route) => route.checkpoints.map((point) => [point.latitude, point.longitude]));
-    if (points.length > 1) map.fitBounds(points, { padding: [36, 36], maxZoom: 10 });
-  }, [map, routes]);
+    if (!route) return;
+    const points = routePositions(route);
+    if (points.length < 2) return;
+    const frame = requestAnimationFrame(() => {
+      map.invalidateSize({ pan: false });
+      map.fitBounds(points, { padding: [32, 32], maxZoom: 10, animate: false });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [map, route]);
   return null;
 }
 
-export default function RouteMap({ routes, selectedRouteId, onSelect }) {
+function MapResizer() {
+  const map = useMap();
+  useEffect(() => {
+    const container = map.getContainer();
+    let frame;
+    let previousWidth = container.clientWidth;
+    let previousHeight = container.clientHeight;
+    const observer = new ResizeObserver(([entry]) => {
+      const width = Math.round(entry.contentRect.width);
+      const height = Math.round(entry.contentRect.height);
+      if (width === previousWidth && height === previousHeight) return;
+      previousWidth = width;
+      previousHeight = height;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => map.invalidateSize({ pan: false, debounceMoveend: true }));
+    });
+    observer.observe(container);
+    frame = requestAnimationFrame(() => map.invalidateSize({ pan: false }));
+    return () => { observer.disconnect(); cancelAnimationFrame(frame); };
+  }, [map]);
+  return null;
+}
+
+export default function RouteMap({ routes, selectedRouteId, onSelect, forecastOffsetHours = 0 }) {
   const usableRoutes = routes ?? [];
-  const center = usableRoutes[0]?.checkpoints?.[0] ? [usableRoutes[0].checkpoints[0].latitude, usableRoutes[0].checkpoints[0].longitude] : [39.5, -98.35];
-  return <div className="h-[440px] overflow-hidden rounded-xl border border-slate-300 bg-white shadow-lg shadow-slate-300/60 lg:h-full"><MapContainer center={center} zoom={4} scrollWheelZoom><TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" /><FitRoutes routes={usableRoutes} />
-    {usableRoutes.map((route) => {
-      const selected = route.route_id === selectedRouteId;
-      const color = route.recommended ? "#22c55e" : route.risk_summary.no_travel_miles > 0 || route.risk_summary.severe_miles > 0 ? "#ef4444" : "#fbbf24";
-      const positions = route.checkpoints.map((point) => [point.latitude, point.longitude]);
-      return <Polyline key={route.route_id} positions={positions} pathOptions={{ color, weight: selected ? 6 : 3, opacity: selected ? 1 : .55 }} eventHandlers={{ click: () => onSelect(route.route_id) }} />;
-    })}
-    {usableRoutes.find((route) => route.route_id === selectedRouteId)?.checkpoints.map((point, index) => <CircleMarker key={`${point.latitude}-${point.longitude}`} center={[point.latitude, point.longitude]} radius={index === 0 ? 7 : 5} pathOptions={{ color: colors[point.risk_level], fillColor: colors[point.risk_level], fillOpacity: 1, weight: 2 }}><Popup><div className="space-y-1 text-sm"><b>{index === 0 ? "Origin" : `${point.distance_from_origin_miles} mi checkpoint`}</b><br />Risk: <b style={{ color: colors[point.risk_level] }}>{point.risk_level}</b><br />Wind {point.weather.wind_mph} mph · Rain {point.weather.rain_in_hr} in/hr · Snow {point.weather.snow_in_hr} in/hr<br /><span className="text-slate-400">{new Date(point.eta).toLocaleString()}</span></div></Popup></CircleMarker>)}
-  </MapContainer></div>;
+  const selectedRoute = usableRoutes.find((route) => route.route_id === selectedRouteId);
+  const riskRuns = useMemo(
+    () => selectedRoute ? buildRiskRuns(selectedRoute, forecastOffsetHours) : [],
+    [selectedRoute, forecastOffsetHours],
+  );
+  const center = usableRoutes[0]?.checkpoints?.[0]
+    ? [usableRoutes[0].checkpoints[0].latitude, usableRoutes[0].checkpoints[0].longitude]
+    : [39.5, -98.35];
+
+  return <div className="h-[300px] min-w-0 overflow-hidden rounded-xl border border-slate-300 bg-white shadow-md shadow-slate-300/60 sm:h-[340px] xl:h-[360px]">
+    <MapContainer center={center} zoom={4} scrollWheelZoom preferCanvas style={{ height: "100%", width: "100%" }}>
+      <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+      <FitSelectedRoute route={selectedRoute} /><MapResizer />
+      {usableRoutes.filter((route) => route.route_id !== selectedRouteId).map((route) => <Polyline
+        key={route.route_id} positions={routePositions(route)}
+        pathOptions={{ color: "#64748b", weight: 3, opacity: .48, dashArray: "6 7" }}
+        eventHandlers={{ click: () => onSelect(route.route_id) }} />)}
+      {riskRuns.map((run, index) => <Polyline key={`${index}-${run.risk}`} positions={run.positions}
+        pathOptions={{ color: colors[run.risk] ?? colors.Unknown, weight: 6, opacity: .95, lineCap: "round", lineJoin: "round" }}
+        eventHandlers={{ click: () => onSelect(selectedRouteId) }} />)}
+      {selectedRoute?.checkpoints.map((point, index) => {
+        const forecast = getCheckpointForecast(point, forecastOffsetHours);
+        const activeRisk = forecast?.available ? forecast.risk_level : "Unknown";
+        const activeWeather = forecast?.available ? forecast.weather : null;
+        return <CircleMarker key={`${point.latitude}-${point.longitude}`} center={[point.latitude, point.longitude]} radius={index === 0 ? 7 : 5}
+          pathOptions={{ color: colors[activeRisk], fillColor: colors[activeRisk], fillOpacity: 1, weight: 2 }}>
+          <Popup><div className="space-y-1 text-sm">
+            <b>{index === 0 ? "Origin" : `${point.distance_from_origin_miles} mi checkpoint`}</b><br />
+            Forecast +{forecastOffsetHours}h: <b style={{ color: colors[activeRisk] }}>{activeRisk}</b><br />
+            {activeWeather
+              ? <>Wind {activeWeather.wind_mph} mph / Rain {activeWeather.rain_in_hr} in/hr / Snow {activeWeather.snow_in_hr} in/hr</>
+              : <span>Hourly weather unavailable</span>}
+            <br /><span className="text-slate-400">{forecast?.forecast_time ? new Date(forecast.forecast_time).toLocaleString() : "Forecast time unavailable"}</span>
+            <hr className="border-slate-600" />
+            <span>ETA risk: <b style={{ color: colors[point.risk_level] }}>{point.risk_level}</b></span><br />
+            <span className="text-slate-400">Arrival {new Date(point.eta).toLocaleString()}</span>
+          </div></Popup>
+        </CircleMarker>;
+      })}
+    </MapContainer>
+  </div>;
 }
