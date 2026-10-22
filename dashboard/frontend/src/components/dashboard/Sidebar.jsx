@@ -20,10 +20,10 @@ export default function Sidebar({ values, onChange, onSubmit, onReset, loading, 
         </Field>
         <Field label="Truck load" icon={<Package size={16} />} help="Cargo weight in pounds. Heavy loads can increase wind-related route risk.">
           <div className="flex items-center gap-2">
-            <input className="min-w-0 flex-1" min="0" max="80000" step="500" type="number" value={values.load_weight} onChange={(e) => update("load_weight", e.target.value)} />
+            <input required className="min-w-0 flex-1" min="1" max="80000" step="1" type="number" value={values.load_weight} onChange={(e) => update("load_weight", e.target.value)} />
             <span className="text-xs text-slate-400">lbs</span>
           </div>
-          <input aria-label="Truck load slider" className="mt-2 w-full accent-cyan-400" min="0" max="80000" step="500" type="range" value={values.load_weight} onChange={(e) => update("load_weight", e.target.value)} />
+          <input aria-label="Truck load slider" className="mt-2 w-full accent-cyan-400" min="1" max="80000" step="500" type="range" value={values.load_weight} onChange={(e) => update("load_weight", e.target.value)} />
         </Field>
         <Field label="Checkpoint interval" help="How often weather is sampled along each route. Shorter intervals provide more detail."><select value={values.checkpoint_interval_miles} onChange={(e) => update("checkpoint_interval_miles", Number(e.target.value))}><option value={10}>Every 10 miles</option><option value={25}>Every 25 miles</option><option value={50}>Every 50 miles</option></select></Field>
         <div className="flex gap-2">

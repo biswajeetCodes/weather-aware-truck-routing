@@ -4,8 +4,9 @@ from unittest.mock import patch
 
 from django.test import TestCase
 
-from .views import (RISK_SCORES, build_forecast_timeline, build_route, calculate_weather_risk, deduplicate_routes,
-                    fetch_routes, fetch_weather, routes_are_near_duplicates, sample_checkpoints)
+from .views import (LocationNotFoundError, RISK_SCORES, RouteNotFoundError, build_forecast_timeline, build_route,
+                    calculate_weather_risk, deduplicate_routes, fetch_routes, fetch_weather, routes_are_near_duplicates,
+                    sample_checkpoints)
 from .views import route_ranking_key
 
 
@@ -266,11 +267,84 @@ class RouteWeatherApiTests(TestCase):
         )
         self.assertEqual(response.status_code, 400)
 
+    def test_rejects_zero_negative_and_over_limit_load_weights(self):
+        for load_weight in (0, -1, 80001, ""):
+            with self.subTest(load_weight=load_weight):
+                response = self.client.post(
+                    "/api/route-weather/",
+                    {"origin": "A", "destination": "B", "load_weight": load_weight},
+                    content_type="application/json",
+                )
+                self.assertEqual(response.status_code, 400)
+
+    @patch("core.views.geocode_location")
+    def test_rejects_same_normalized_location_without_geocoding(self, geocode):
+        response = self.client.post(
+            "/api/route-weather/",
+            {"origin": "  New   York, NY ", "destination": "new york, ny", "load_weight": 1000},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("different locations", response.json()["error"])
+        geocode.assert_not_called()
+
+    @patch("core.views.fetch_routes")
+    @patch("core.views.geocode_location")
+    def test_rejects_distinct_names_that_resolve_to_same_location(self, geocode, routes):
+        geocode.side_effect = [
+            {"latitude": 40.7128, "longitude": -74.006, "display_name": "New York, NY"},
+            {"latitude": 40.7128, "longitude": -74.006, "display_name": "NYC"},
+        ]
+        response = self.client.post(
+            "/api/route-weather/",
+            {"origin": "New York, NY", "destination": "NYC", "load_weight": 1000},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("resolve to the same location", response.json()["error"])
+        routes.assert_not_called()
+
+    @patch("core.views.geocode_location", side_effect=LocationNotFoundError("A location could not be found."))
+    def test_returns_friendly_validation_error_for_unresolved_location(self, geocode):
+        response = self.client.post(
+            "/api/route-weather/",
+            {"origin": "Unknown place", "destination": "Boston, MA", "load_weight": 1000},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("could not be found", response.json()["error"])
+        geocode.assert_called_once()
+
+    @patch("core.views.fetch_routes", side_effect=RouteNotFoundError("No drivable route was found."))
+    @patch("core.views.geocode_location")
+    def test_returns_friendly_validation_error_when_no_route_exists(self, geocode, routes):
+        geocode.side_effect = [
+            {"latitude": 40.7128, "longitude": -74.006, "display_name": "New York, NY"},
+            {"latitude": 42.3601, "longitude": -71.0589, "display_name": "Boston, MA"},
+        ]
+        response = self.client.post(
+            "/api/route-weather/",
+            {"origin": "New York, NY", "destination": "Boston, MA", "load_weight": 1000},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("No drivable route", response.json()["error"])
+        routes.assert_called_once()
+
     def test_rejects_departure_outside_forecast_window(self):
         response = self.client.post(
             "/api/route-weather/",
             {"origin": "A", "destination": "B", "load_weight": 1000,
              "departure_time": (datetime.now(timezone.utc) + timedelta(days=16)).isoformat()},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_rejects_past_departure_time(self):
+        response = self.client.post(
+            "/api/route-weather/",
+            {"origin": "A", "destination": "B", "load_weight": 1000,
+             "departure_time": (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat()},
             content_type="application/json",
         )
         self.assertEqual(response.status_code, 400)

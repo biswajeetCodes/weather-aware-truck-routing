@@ -2,6 +2,7 @@ const API_URL = import.meta.env?.VITE_ROUTE_WEATHER_API ?? "http://127.0.0.1:800
 
 const DEPARTURE_ROUNDING_MINUTES = 15;
 const MAX_DEPARTURE_DAYS = 15;
+const MAX_LOAD_WEIGHT_LBS = 80000;
 
 function toLocalDateTimeValue(date) {
   const pad = (value) => String(value).padStart(2, "0");
@@ -38,7 +39,17 @@ export function serializeDepartureTime(localDateTime, now = new Date()) {
 }
 
 export function buildRouteRequestPayload(payload, now = new Date()) {
-  return { ...payload, departure_time: serializeDepartureTime(payload.departure_time, now) };
+  const origin = typeof payload.origin === "string" ? payload.origin.trim() : "";
+  const destination = typeof payload.destination === "string" ? payload.destination.trim() : "";
+  if (!origin || !destination) throw new Error("Enter both an origin and destination.");
+  if (origin.replace(/\s+/g, " ").toLocaleLowerCase() === destination.replace(/\s+/g, " ").toLocaleLowerCase()) {
+    throw new Error("Origin and destination must be different locations.");
+  }
+  const loadWeight = Number(payload.load_weight);
+  if (!Number.isFinite(loadWeight) || loadWeight <= 0 || loadWeight > MAX_LOAD_WEIGHT_LBS) {
+    throw new Error("Truck load must be greater than 0 and no more than 80,000 lbs.");
+  }
+  return { ...payload, origin, destination, load_weight: loadWeight, departure_time: serializeDepartureTime(payload.departure_time, now) };
 }
 
 export async function calculateSafeRoute(payload) {

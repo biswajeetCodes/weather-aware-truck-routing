@@ -26,6 +26,7 @@ RISK_SCORES = {"Low": 1, "Moderate": 2, "High": 3, "Severe": 4, "No Travel": 5}
 RETRYABLE_STATUS_CODES = (429, 500, 502, 503, 504)
 MAX_FORECAST_DAYS = 15
 MAX_LOCATION_LENGTH = 250
+MAX_LOAD_WEIGHT_LBS = 80000
 
 
 def _create_http_session():
@@ -50,6 +51,14 @@ _thread_local = local()
 
 class UpstreamServiceError(Exception):
     """A mapping, routing, or weather provider could not serve usable data."""
+
+
+class LocationNotFoundError(UpstreamServiceError):
+    """A valid geocoding response did not resolve the requested location."""
+
+
+class RouteNotFoundError(UpstreamServiceError):
+    """The routing provider found no drivable route for valid locations."""
 
 
 def health_check(_request):
@@ -98,7 +107,7 @@ def geocode_location(location):
     results = _get_json("Nominatim geocoding", NOMINATIM_URL, params={"q": location, "format": "jsonv2", "limit": 1},
                         headers={"User-Agent": "SpotterAI-WeatherRouting/1.0"})
     if not results:
-        raise UpstreamServiceError("A location could not be found.")
+        raise LocationNotFoundError("A location could not be found. Check the spelling and try a more specific location.")
     try:
         item = results[0]
         return {"latitude": float(item["lat"]), "longitude": float(item["lon"]), "display_name": item["display_name"]}
@@ -112,7 +121,7 @@ def fetch_routes(origin, destination):
                         params={"alternatives": MAX_ROUTE_OPTIONS, "overview": "full",
                                 "geometries": "geojson", "steps": "false"})
     if payload.get("code") != "Ok" or not payload.get("routes"):
-        raise UpstreamServiceError("No drivable route was found between these locations.")
+        raise RouteNotFoundError("No drivable route was found between these locations.")
     routes = deduplicate_routes(payload["routes"])
     if not routes:
         raise UpstreamServiceError("Routing returned no valid route geometry.")
@@ -205,6 +214,19 @@ def _parse_departure_time(value):
         return parsed.replace(tzinfo=timezone.utc) if parsed.tzinfo is None else parsed.astimezone(timezone.utc)
     except (AttributeError, ValueError) as exc:
         raise ValueError("departure_time must be an ISO-8601 datetime.") from exc
+
+
+def _normalized_location_name(value):
+    """Normalize a user-entered location for a no-network duplicate check."""
+    return " ".join(value.casefold().split()) if isinstance(value, str) else ""
+
+
+def _same_location(first, second):
+    """Treat identical geocoded points as one location before routing."""
+    return _distance_miles(
+        [first["longitude"], first["latitude"]],
+        [second["longitude"], second["latitude"]],
+    ) < 0.01
 
 
 def _utc_hour(value):
@@ -324,27 +346,37 @@ def build_route(route, route_index, load_weight, interval_miles, departure_time,
 @api_view(["POST"])
 def calculate_route_weather(request):
     data = request.data
-    origin_name, destination_name = str(data.get("origin", "")).strip(), str(data.get("destination", "")).strip()
+    if not isinstance(data, dict):
+        return Response({"error": "Request data must be a JSON object."}, status=400)
+    origin_name = _normalized_location_name(data.get("origin"))
+    destination_name = _normalized_location_name(data.get("destination"))
     if not origin_name or not destination_name:
         return Response({"error": "Origin and destination are required."}, status=400)
     if len(origin_name) > MAX_LOCATION_LENGTH or len(destination_name) > MAX_LOCATION_LENGTH:
         return Response({"error": f"Origin and destination must be {MAX_LOCATION_LENGTH} characters or fewer."}, status=400)
+    if origin_name == destination_name:
+        return Response({"error": "Origin and destination must be different locations."}, status=400)
     try:
         load_weight = float(data.get("load_weight", 0))
         interval_miles = int(data.get("checkpoint_interval_miles", 25))
-        if not isfinite(load_weight) or load_weight < 0 or interval_miles not in {10, 25, 50}:
+        if not isfinite(load_weight) or not 0 < load_weight <= MAX_LOAD_WEIGHT_LBS or interval_miles not in {10, 25, 50}:
             raise ValueError
-        departure_time = _parse_departure_time(data.get("departure_time"))
+        departure_value = data.get("departure_time")
+        departure_time = _parse_departure_time(departure_value)
         now = datetime.now(timezone.utc)
-        if departure_time < now - timedelta(minutes=1) or departure_time > now + timedelta(days=MAX_FORECAST_DAYS):
+        if departure_value and (departure_time < now or departure_time > now + timedelta(days=MAX_FORECAST_DAYS)):
             raise ValueError
     except (TypeError, ValueError):
-        return Response({"error": "load_weight must be a finite non-negative number, checkpoint_interval_miles must be 10, 25, or 50, and departure_time must be a valid time within the next 15 days."}, status=400)
+        return Response({"error": "load_weight must be a finite number greater than 0 and no more than 80,000 lbs, checkpoint_interval_miles must be 10, 25, or 50, and departure_time must be a valid future time within the next 15 days."}, status=400)
     try:
         origin, destination = geocode_location(origin_name), geocode_location(destination_name)
+        if _same_location(origin, destination):
+            return Response({"error": "Origin and destination resolve to the same location. Choose two different locations."}, status=400)
         forecast_timeline = build_forecast_timeline()
         routes = [build_route(route, index + 1, load_weight, interval_miles, departure_time, forecast_timeline)
                   for index, route in enumerate(fetch_routes(origin, destination))]
+    except (LocationNotFoundError, RouteNotFoundError) as exc:
+        return Response({"error": str(exc)}, status=400)
     except UpstreamServiceError as exc:
         return Response({"error": str(exc)}, status=502)
     routes.sort(key=route_ranking_key)
